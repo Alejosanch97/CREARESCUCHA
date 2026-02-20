@@ -2,20 +2,20 @@ import React, { useState, useEffect } from "react";
 import useGlobalReducer from "../hooks/useGlobalReducer.jsx";
 import "../Styles/happiness.css";
 
-// URL de tu nuevo despliegue de Apps Script
+// URL de tu despliegue de Apps Script
 const API_URL = 'https://script.google.com/macros/s/AKfycbxIybOB54-6yRoWS7uWoi7ERHYYdgCJbB545YyePOkPdfTkHLlW0DfRbxI7iLYcq2EA1w/exec';
-const SCHOOL_LOGO = "https://i.pinimg.com/736x/1c/fc/8b/1cfc8b1ab0460021e731dd82d17abb72.jpg";
 const BACKGROUND_IMG = "https://i.pinimg.com/1200x/46/8a/86/468a868053de4674786e2828885d8741.jpg";
 
 export const Home = () => {
     const { store, dispatch } = useGlobalReducer();
-    const [step, setStep] = useState(0); // 0: Bienvenida, 1: Formulario, 2: Éxito
+    const [step, setStep] = useState(0); 
     const [syncing, setSyncing] = useState(false);
     const [showAdmin, setShowAdmin] = useState(false);
     const [adminAuth, setAdminAuth] = useState(false);
     const [password, setPassword] = useState("");
     const [pqrsData, setPqrsData] = useState([]);
 
+    // MANTENEMOS TODOS TUS CAMPOS INTACTOS
     const [formData, setFormData] = useState({
         Email: "",
         Apellidos: "",
@@ -28,6 +28,7 @@ export const Home = () => {
         Mensaje: ""
     });
 
+    // MANTENEMOS TODAS TUS CATEGORÍAS
     const categorias = [
         "Ruta", "Atención al Cliente", "Restaurante", "Cafeteria", 
         "Felicitaciones", "Académico", "Convivencia", 
@@ -39,11 +40,13 @@ export const Home = () => {
     // --- LÓGICA DE DATOS ---
 
     const fetchPqrs = async () => {
+        setSyncing(true); // Solo mostramos carga al traer datos nuevos
         try {
             const resp = await fetch(API_URL);
             const data = await resp.json();
             setPqrsData(data);
         } catch (err) { console.error("Error cargando PQRS", err); }
+        setSyncing(false);
     };
 
     const handleAdminLogin = () => {
@@ -59,9 +62,10 @@ export const Home = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = async (e) => {
+    // ENVÍO INSTANTÁNEO (Optimistic Update)
+    const handleSubmit = (e) => {
         e.preventDefault();
-        setSyncing(true);
+        setStep(2); // Éxito inmediato
 
         const payload = {
             action: 'CREATE',
@@ -69,48 +73,40 @@ export const Home = () => {
             teacherKey: "GENERAL"
         };
 
-        try {
-            await fetch(API_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(payload)
-            });
+        fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        }).catch(err => console.error("Error de sincronización:", err));
 
-            setTimeout(() => {
-                setSyncing(false);
-                setStep(2);
-                setFormData({ Email: "", Apellidos: "", Nombres: "", Relacion_Colegio: "", Telefono: "", Nombre_Estudiante: "", Curso: "", Categoria: "", Mensaje: "" });
-            }, 1500);
-        } catch (err) {
-            console.error("Error:", err);
-            setSyncing(false);
-        }
+        setFormData({ Email: "", Apellidos: "", Nombres: "", Relacion_Colegio: "", Telefono: "", Nombre_Estudiante: "", Curso: "", Categoria: "", Mensaje: "" });
     };
 
-    const updateStatus = async (id, newStatus) => {
-        setSyncing(true);
-        try {
-            await fetch(API_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                body: JSON.stringify({
-                    action: 'UPDATE',
-                    id: id,
-                    data: { Status: newStatus }
-                })
-            });
-            setTimeout(() => {
-                fetchPqrs();
-                setSyncing(false);
-            }, 1000);
-        } catch (err) {
-            console.error(err);
-            setSyncing(false);
-        }
+    // MEJORA: RESOLVER INSTANTÁNEO (Optimistic Update para Admin)
+    const updateStatus = (id, newStatus) => {
+        // 1. Cambiamos el estado localmente DE UNA VEZ
+        const dataActualizada = pqrsData.map(item => 
+            item.ID_Registro === id ? { ...item, Status: newStatus } : item
+        );
+        setPqrsData(dataActualizada);
+
+        // 2. Avisamos a la base de datos en silencio (sin bloquear la pantalla)
+        fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                action: 'UPDATE',
+                id: id,
+                data: { Status: newStatus }
+            })
+        }).catch(err => {
+            console.error("Error al actualizar en servidor:", err);
+            fetchPqrs(); // Si falla el internet, recargamos para mostrar lo real
+        });
     };
 
-    // --- FILTROS PARA EL ADMIN ---
+    // FILTROS
     const pendientes = pqrsData.filter(p => p.Status !== "Resuelto");
     const resueltos = pqrsData.filter(p => p.Status === "Resuelto");
 
@@ -122,58 +118,83 @@ export const Home = () => {
             {syncing && (
                 <div className="sync-overlay">
                     <div className="spinner"></div>
-                    <p>Procesando información...</p>
+                    <p>Cargando información...</p>
                 </div>
             )}
 
             {/* MODAL ADMINISTRACIÓN */}
             {showAdmin && (
                 <div className="admin-modal-overlay">
-                    <div className="admin-modal-content wide-modal">
-                        <button className="close-modal" onClick={() => {setShowAdmin(false); setAdminAuth(false); setPassword("");}}>×</button>
+                    <div className={!adminAuth ? "auth-section" : "admin-modal-content wide-modal"}>
+
+                        <button className="close-modal" onClick={() => { setShowAdmin(false); setAdminAuth(false); setPassword(""); }}>×</button>
+
                         {!adminAuth ? (
-                            <div className="auth-section">
+                            <div className="login-wrapper">
                                 <h2>Acceso Administrativo 🔒</h2>
-                                <input 
-                                    type="password" 
-                                    className="modern-input" 
-                                    placeholder="Ingrese la clave" 
+                                <p style={{ color: '#666', marginBottom: '20px' }}>Ingrese su credencial para ver el análisis</p>
+                                <input
+                                    type="password"
+                                    className="modern-input"
+                                    placeholder="Contraseña"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+                                    autoFocus
                                 />
-                                <button className="confirm-btn" onClick={handleAdminLogin}>Entrar</button>
+                                <button className="confirm-btn" onClick={handleAdminLogin}>ENTRAR</button>
                             </div>
                         ) : (
                             <div className="dashboard-container">
-                                <h2>📈 Panel GCRB Te Escucha</h2>
-                                
+                                <div className="dashboard-header-flex">
+                                    <h2>📈 Panel GCRB Te Escucha</h2>
+                                    <button onClick={fetchPqrs} className="refresh-btn-small">Actualizar Datos 🔄</button>
+                                </div>
+
                                 <div className="stats-grid">
-                                    <div className="stat-card">Pendientes: {pendientes.length}</div>
-                                    <div className="stat-card green">Resueltos: {resueltos.length}</div>
+                                    <div className="stat-card">
+                                        <small>Pendientes</small>
+                                        <div>{pendientes.length}</div>
+                                    </div>
+                                    <div className="stat-card green">
+                                        <small>Resueltos</small>
+                                        <div>{resueltos.length}</div>
+                                    </div>
                                 </div>
 
                                 <div className="tables-container">
                                     <div className="table-section">
-                                        <h3>📥 Bandeja de Entrada (Pendientes)</h3>
-                                        {pendientes.map(item => (
-                                            <div key={item.ID_Registro} className="pqrs-card">
-                                                <p><strong>De:</strong> {item.Nombres} {item.Apellidos} ({item.Categoria})</p>
-                                                <p className="msg-preview">"{item.Mensaje}"</p>
-                                                <button className="resolve-btn" onClick={() => updateStatus(item.ID_Registro, "Resuelto")}>
-                                                    Marcar como Resuelto ✅
-                                                </button>
-                                            </div>
-                                        ))}
+                                        <h3>📥 Pendientes por Revisar</h3>
+                                        <div className="scroll-area">
+                                            {pendientes.length === 0 ? <p className="empty-msg">No hay casos pendientes.</p> :
+                                                pendientes.map(item => (
+                                                    <div key={item.ID_Registro} className="pqrs-card">
+                                                        <div className="pqrs-header">
+                                                            <strong>{item.Nombres} {item.Apellidos}</strong>
+                                                            <span className="cat-tag">{item.Categoria}</span>
+                                                        </div>
+                                                        <p className="msg-preview">"{item.Mensaje}"</p>
+                                                        <button className="resolve-btn" onClick={() => updateStatus(item.ID_Registro, "Resuelto")}>
+                                                            Marcar como Solucionado ✅
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            }
+                                        </div>
                                     </div>
 
                                     <div className="table-section resueltos">
-                                        <h3>✅ Histórico de Resueltos</h3>
-                                        {resueltos.map(item => (
-                                            <div key={item.ID_Registro} className="pqrs-card solved">
-                                                <p><strong>{item.Categoria}:</strong> {item.Nombres}</p>
-                                                <span className="badge-solved">SOLUCIONADO</span>
-                                            </div>
-                                        ))}
+                                        <h3>✅ Historial de Resueltos</h3>
+                                        <div className="scroll-area">
+                                            {resueltos.length === 0 ? <p className="empty-msg">No hay registros aún.</p> :
+                                                resueltos.map(item => (
+                                                    <div key={item.ID_Registro} className="pqrs-card solved">
+                                                        <p><strong>{item.Categoria}:</strong> {item.Nombres}</p>
+                                                        <span className="badge-solved">RESUELTO</span>
+                                                    </div>
+                                                ))
+                                            }
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -188,45 +209,45 @@ export const Home = () => {
                     <div className="glass-card main-welcome">
                         <img src="/logo.png" className="school-logo-large" alt="GCRB Logo" />
                         <h1>Crear Te Escucha</h1>
-                        <p>Tu opinión nos ayuda a crecer. Espacio para PQRS & Felicitaciones.</p>
+                        <p>Tu opinión nos permite mejorar cada día. Gracias por comunicarte con nosotros.</p>
                         <button className="start-btn-huge" onClick={() => setStep(1)}>INICIAR ENCUESTA 🚀</button>
                     </div>
                 </div>
             )}
 
-            {/* PASO 1: FORMULARIO */}
+            {/* PASO 1: FORMULARIO COMPLETO */}
             {step === 1 && (
                 <div className="form-container">
                     <form className="glass-card-form" onSubmit={handleSubmit}>
                         <h2>Formulario de Contacto</h2>
                         <div className="form-grid">
-                            <input type="email" name="Email" placeholder="Correo electrónico*" required onChange={handleInputChange} />
-                            <input type="text" name="Nombres" placeholder="Nombres*" required onChange={handleInputChange} />
-                            <input type="text" name="Apellidos" placeholder="Apellidos*" required onChange={handleInputChange} />
-                            <input type="tel" name="Telefono" placeholder="Teléfono*" required onChange={handleInputChange} />
+                            <input type="email" name="Email" placeholder="Correo electrónico*" required value={formData.Email} onChange={handleInputChange} />
+                            <input type="text" name="Nombres" placeholder="Nombres*" required value={formData.Nombres} onChange={handleInputChange} />
+                            <input type="text" name="Apellidos" placeholder="Apellidos*" required value={formData.Apellidos} onChange={handleInputChange} />
+                            <input type="tel" name="Telefono" placeholder="Teléfono*" required value={formData.Telefono} onChange={handleInputChange} />
                             
-                            <select name="Relacion_Colegio" required onChange={handleInputChange}>
+                            <select name="Relacion_Colegio" required value={formData.Relacion_Colegio} onChange={handleInputChange}>
                                 <option value="">Relación con el Colegio*</option>
                                 {relaciones.map(r => <option key={r} value={r}>{r}</option>)}
                             </select>
 
-                            <select name="Categoria" required onChange={handleInputChange}>
-                                <option value="">PQRS & F (Categoría)*</option>
+                            <select name="Categoria" required value={formData.Categoria} onChange={handleInputChange}>
+                                <option value="">Área o Categoría*</option>
                                 {categorias.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
 
-                            <input type="text" name="Nombre_Estudiante" placeholder="Nombre Estudiante (opcional)" onChange={handleInputChange} />
-                            <input type="text" name="Curso" placeholder="Curso" onChange={handleInputChange} />
+                            <input type="text" name="Nombre_Estudiante" placeholder="Nombre Estudiante (opcional)" value={formData.Nombre_Estudiante} onChange={handleInputChange} />
+                            <input type="text" name="Curso" placeholder="Grado / Curso" value={formData.Curso} onChange={handleInputChange} />
                         </div>
-                        <textarea name="Mensaje" placeholder="Escribe tu mensaje aquí..." required onChange={handleInputChange}></textarea>
+                        <textarea name="Mensaje" placeholder="Escribe aquí tu solicitud, reclamo o felicitación..." required value={formData.Mensaje} onChange={handleInputChange}></textarea>
                         
                         <div className="terms-box">
-                            <p>Acepto el tratamiento de datos personales según la Ley 1581 de 2012.</p>
+                            <p>Al enviar este formulario, acepto el tratamiento de datos según la política institucional del GCRB.</p>
                         </div>
 
                         <div className="form-buttons">
                             <button type="button" className="back-btn" onClick={() => setStep(0)}>Volver</button>
-                            <button type="submit" className="submit-btn">ENVIAR PQRS</button>
+                            <button type="submit" className="submit-btn">ENVIAR AHORA 🚀</button>
                         </div>
                     </form>
                 </div>
@@ -235,11 +256,11 @@ export const Home = () => {
             {/* PASO 2: ÉXITO */}
             {step === 2 && (
                 <div className="success-container">
-                    <div className="glass-card success-box">
-                        <div className="check-icon">✅</div>
-                        <h1>¡Enviado con éxito!</h1>
-                        <p>Hemos recibido tu solicitud. Pronto nos pondremos en contacto contigo.</p>
-                        <button className="start-btn-huge" onClick={() => setStep(0)}>Finalizar</button>
+                    <div className="glass-card success-box-clean">
+                        <div className="check-icon-large">✨</div>
+                        <h1>¡Mensaje Recibido!</h1>
+                        <p>Agradecemos tu tiempo. Hemos registrado tu solicitud exitosamente en nuestro sistema.</p>
+                        <button className="final-btn" onClick={() => setStep(0)}>Finalizar</button>
                     </div>
                 </div>
             )}
