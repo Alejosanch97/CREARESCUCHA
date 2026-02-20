@@ -15,10 +15,10 @@ export const Home = () => {
     const [password, setPassword] = useState("");
     const [pqrsData, setPqrsData] = useState([]);
     
-    // Estado para filtrar por categoría en el análisis
+    // Filtros para el panel de análisis
     const [filtroCategoria, setFiltroCategoria] = useState("Todas");
+    const [filtroGrado, setFiltroGrado] = useState("Todos");
 
-    // MANTENEMOS TODOS TUS CAMPOS INTACTOS
     const [formData, setFormData] = useState({
         Email: "",
         Apellidos: "",
@@ -31,7 +31,7 @@ export const Home = () => {
         Mensaje: ""
     });
 
-    // MANTENEMOS TODAS TUS CATEGORÍAS
+    // Listas fijas para el formulario
     const categorias = [
         "Ruta", "Atención al Cliente", "Restaurante", "Cafeteria", 
         "Felicitaciones", "Académico", "Convivencia", 
@@ -40,10 +40,16 @@ export const Home = () => {
 
     const relaciones = ["Padre de Familia", "Estudiante", "Funcionario", "Proveedor", "Visitante", "Otro"];
 
+    const listaGradosForm = [
+        "Prejardín", "Jardín", "Transición", 
+        "Primero", "Segundo", "Tercero", "Cuarto", "Quinto",
+        "Sexto", "Séptimo", "Octavo", "Noveno", "Décimo", "Once"
+    ];
+
     // --- LÓGICA DE DATOS ---
 
     const fetchPqrs = async () => {
-        setSyncing(true); // Solo mostramos carga al traer datos nuevos
+        setSyncing(true);
         try {
             const resp = await fetch(API_URL);
             const data = await resp.json();
@@ -65,10 +71,9 @@ export const Home = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // ENVÍO INSTANTÁNEO (Optimistic Update)
     const handleSubmit = (e) => {
         e.preventDefault();
-        setStep(2); // Éxito inmediato
+        setStep(2);
 
         const payload = {
             action: 'CREATE',
@@ -86,15 +91,12 @@ export const Home = () => {
         setFormData({ Email: "", Apellidos: "", Nombres: "", Relacion_Colegio: "", Telefono: "", Nombre_Estudiante: "", Curso: "", Categoria: "", Mensaje: "" });
     };
 
-    // MEJORA: RESOLVER INSTANTÁNEO (Optimistic Update para Admin)
     const updateStatus = (id, newStatus) => {
-        // 1. Cambiamos el estado localmente DE UNA VEZ
         const dataActualizada = pqrsData.map(item => 
             item.ID_Registro === id ? { ...item, Status: newStatus } : item
         );
         setPqrsData(dataActualizada);
 
-        // 2. Avisamos a la base de datos en silencio (sin bloquear la pantalla)
         fetch(API_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -105,20 +107,23 @@ export const Home = () => {
             })
         }).catch(err => {
             console.error("Error al actualizar en servidor:", err);
-            fetchPqrs(); // Si falla el internet, recargamos para mostrar lo real
+            fetchPqrs();
         });
     };
 
-    // --- NUEVA LÓGICA DE FILTRADO CORREGIDA ---
+    // --- LÓGICA DE FILTRADO PARA ANÁLISIS ---
     
-    // 1. Primero filtramos por categoría (Si es "Todas", pasan todos)
-    const datosPorCategoria = filtroCategoria === "Todas" 
-        ? pqrsData 
-        : pqrsData.filter(p => p.Categoria === filtroCategoria);
+    // Obtenemos los grados de la data (para el filtro de admin)
+    const gradosEnData = [...new Set(pqrsData.map(item => item.Curso))].filter(Boolean).sort();
 
-    // 2. Luego, sobre ese resultado, separamos pendientes y resueltos
-    const pendientesFiltrados = datosPorCategoria.filter(p => p.Status !== "Resuelto");
-    const resueltosFiltrados = datosPorCategoria.filter(p => p.Status === "Resuelto");
+    const datosFiltrados = pqrsData.filter(item => {
+        const cumpleCategoria = filtroCategoria === "Todas" || item.Categoria === filtroCategoria;
+        const cumpleGrado = filtroGrado === "Todos" || item.Curso === filtroGrado;
+        return cumpleCategoria && cumpleGrado;
+    });
+
+    const pendientesFiltrados = datosFiltrados.filter(p => p.Status !== "Resuelto");
+    const resueltosFiltrados = datosFiltrados.filter(p => p.Status === "Resuelto");
 
     return (
         <div className="pqrs-app" style={{ backgroundImage: `url(${BACKGROUND_IMG})`, backgroundSize: 'cover', minHeight: '100vh' }}>
@@ -142,7 +147,7 @@ export const Home = () => {
                         {!adminAuth ? (
                             <div className="login-wrapper">
                                 <h2>Acceso Administrativo 🔒</h2>
-                                <p style={{ color: '#666', marginBottom: '20px' }}>Ingrese su credencial para ver el análisis</p>
+                                <p style={{ color: '#666', marginBottom: '20px' }}>Ingrese su credencial</p>
                                 <input
                                     type="password"
                                     className="modern-input"
@@ -157,50 +162,66 @@ export const Home = () => {
                         ) : (
                             <div className="dashboard-container">
                                 <div className="dashboard-header-flex">
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                         <h2>📈 Panel GCRB Te Escucha</h2>
-                                        {/* SELECTOR DE FILTRO GLOBAL POR CATEGORÍA */}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Filtrar vista por:</span>
-                                            <select 
-                                                className="filter-select-mini"
-                                                value={filtroCategoria}
-                                                onChange={(e) => setFiltroCategoria(e.target.value)}
-                                                style={{ padding: '5px 10px', borderRadius: '10px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', background: 'white' }}
-                                            >
-                                                <option value="Todas">Todas las áreas</option>
-                                                {categorias.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                            </select>
+                                        
+                                        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Área:</span>
+                                                <select 
+                                                    className="filter-select-mini"
+                                                    value={filtroCategoria}
+                                                    onChange={(e) => setFiltroCategoria(e.target.value)}
+                                                >
+                                                    <option value="Todas">Todas</option>
+                                                    {categorias.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Grado:</span>
+                                                <select 
+                                                    className="filter-select-mini"
+                                                    value={filtroGrado}
+                                                    onChange={(e) => setFiltroGrado(e.target.value)}
+                                                >
+                                                    <option value="Todos">Todos</option>
+                                                    {gradosEnData.map(grado => <option key={grado} value={grado}>{grado}</option>)}
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
-                                    <button onClick={fetchPqrs} className="refresh-btn-small">Actualizar Datos 🔄</button>
+                                    <button onClick={fetchPqrs} className="refresh-btn-small">Actualizar 🔄</button>
                                 </div>
 
                                 <div className="stats-grid">
                                     <div className="stat-card">
-                                        <small>Pendientes ({filtroCategoria})</small>
+                                        <small>Pendientes (Filtrados)</small>
                                         <div>{pendientesFiltrados.length}</div>
                                     </div>
                                     <div className="stat-card green">
-                                        <small>Resueltos ({filtroCategoria})</small>
+                                        <small>Resueltos (Filtrados)</small>
                                         <div>{resueltosFiltrados.length}</div>
                                     </div>
                                 </div>
 
                                 <div className="tables-container">
                                     <div className="table-section">
-                                        <h3>📥 Pendientes por Revisar</h3>
+                                        <h3>📥 Pendientes</h3>
                                         <div className="scroll-area">
-                                            {pendientesFiltrados.length === 0 ? <p className="empty-msg">No hay casos pendientes en "{filtroCategoria}".</p> :
+                                            {pendientesFiltrados.length === 0 ? <p className="empty-msg">No hay coincidencias.</p> :
                                                 pendientesFiltrados.map(item => (
                                                     <div key={item.ID_Registro} className="pqrs-card">
                                                         <div className="pqrs-header">
                                                             <strong>{item.Nombres} {item.Apellidos}</strong>
-                                                            <span className="cat-tag">{item.Categoria}</span>
+                                                            <div style={{display: 'flex', gap: '5px'}}>
+                                                                <span className="cat-tag">{item.Categoria}</span>
+                                                                <span className="cat-tag" style={{background: '#e9ecef', color: '#495057'}}>{item.Curso}</span>
+                                                            </div>
                                                         </div>
                                                         <p className="msg-preview">"{item.Mensaje}"</p>
                                                         <button className="resolve-btn" onClick={() => updateStatus(item.ID_Registro, "Resuelto")}>
-                                                            Marcar como Solucionado ✅
+                                                            Solucionar ✅
                                                         </button>
                                                     </div>
                                                 ))
@@ -209,12 +230,12 @@ export const Home = () => {
                                     </div>
 
                                     <div className="table-section resueltos">
-                                        <h3>✅ Historial de Resueltos</h3>
+                                        <h3>✅ Resueltos</h3>
                                         <div className="scroll-area">
-                                            {resueltosFiltrados.length === 0 ? <p className="empty-msg">No hay registros resueltos en "{filtroCategoria}".</p> :
+                                            {resueltosFiltrados.length === 0 ? <p className="empty-msg">No hay registros.</p> :
                                                 resueltosFiltrados.map(item => (
                                                     <div key={item.ID_Registro} className="pqrs-card solved">
-                                                        <p><strong>{item.Categoria}:</strong> {item.Nombres} {item.Apellidos}</p>
+                                                        <p><strong>{item.Categoria} ({item.Curso}):</strong> {item.Nombres}</p>
                                                         <span className="badge-solved">RESUELTO</span>
                                                     </div>
                                                 ))
@@ -240,7 +261,7 @@ export const Home = () => {
                 </div>
             )}
 
-            {/* PASO 1: FORMULARIO COMPLETO */}
+            {/* PASO 1: FORMULARIO */}
             {step === 1 && (
                 <div className="form-container">
                     <form className="glass-card-form" onSubmit={handleSubmit}>
@@ -262,9 +283,14 @@ export const Home = () => {
                             </select>
 
                             <input type="text" name="Nombre_Estudiante" placeholder="Nombre Estudiante (opcional)" value={formData.Nombre_Estudiante} onChange={handleInputChange} />
-                            <input type="text" name="Curso" placeholder="Grado / Curso" value={formData.Curso} onChange={handleInputChange} />
+                            
+                            {/* NUEVO SELECTOR DE GRADO EN FORMULARIO */}
+                            <select name="Curso" required value={formData.Curso} onChange={handleInputChange}>
+                                <option value="">Selecciona el Grado*</option>
+                                {listaGradosForm.map(grado => <option key={grado} value={grado}>{grado}</option>)}
+                            </select>
                         </div>
-                        <textarea name="Mensaje" placeholder="Escribe aquí tu solicitud, reclamo o felicitación..." required value={formData.Mensaje} onChange={handleInputChange}></textarea>
+                        <textarea name="Mensaje" placeholder="Escribe aquí tu solicitud..." required value={formData.Mensaje} onChange={handleInputChange}></textarea>
                         
                         <div className="terms-box">
                             <p>Al enviar este formulario, acepto el tratamiento de datos según la política institucional del GCRB.</p>
@@ -284,7 +310,7 @@ export const Home = () => {
                     <div className="glass-card success-box-clean">
                         <div className="check-icon-large">✨</div>
                         <h1>¡Mensaje Recibido!</h1>
-                        <p>Agradecemos tu tiempo. Hemos registrado tu solicitud exitosamente en nuestro sistema.</p>
+                        <p>Hemos registrado tu solicitud exitosamente.</p>
                         <button className="final-btn" onClick={() => setStep(0)}>Finalizar</button>
                     </div>
                 </div>
