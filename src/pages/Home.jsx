@@ -207,7 +207,7 @@ export const Home = () => {
             {step === 0 && (
                 <div className="welcome-container">
                     <div className="glass-card main-welcome">
-                        <img src="/logo.png" className="school-logo-large" alt="GCRB Logo" />
+                        <img src="logo.png" className="school-logo-large" alt="GCRB Logo" />
                         <h1>Crear Te Escucha</h1>
                         <p>Tu opinión nos permite mejorar cada día. Gracias por comunicarte con nosotros.</p>
                         <button className="start-btn-huge" onClick={() => setStep(1)}>INICIAR ENCUESTA 🚀</button>
