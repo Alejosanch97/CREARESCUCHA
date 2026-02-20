@@ -14,6 +14,9 @@ export const Home = () => {
     const [adminAuth, setAdminAuth] = useState(false);
     const [password, setPassword] = useState("");
     const [pqrsData, setPqrsData] = useState([]);
+    
+    // Estado para filtrar por categoría en el análisis
+    const [filtroCategoria, setFiltroCategoria] = useState("Todas");
 
     // MANTENEMOS TODOS TUS CAMPOS INTACTOS
     const [formData, setFormData] = useState({
@@ -106,9 +109,16 @@ export const Home = () => {
         });
     };
 
-    // FILTROS
-    const pendientes = pqrsData.filter(p => p.Status !== "Resuelto");
-    const resueltos = pqrsData.filter(p => p.Status === "Resuelto");
+    // --- NUEVA LÓGICA DE FILTRADO CORREGIDA ---
+    
+    // 1. Primero filtramos por categoría (Si es "Todas", pasan todos)
+    const datosPorCategoria = filtroCategoria === "Todas" 
+        ? pqrsData 
+        : pqrsData.filter(p => p.Categoria === filtroCategoria);
+
+    // 2. Luego, sobre ese resultado, separamos pendientes y resueltos
+    const pendientesFiltrados = datosPorCategoria.filter(p => p.Status !== "Resuelto");
+    const resueltosFiltrados = datosPorCategoria.filter(p => p.Status === "Resuelto");
 
     return (
         <div className="pqrs-app" style={{ backgroundImage: `url(${BACKGROUND_IMG})`, backgroundSize: 'cover', minHeight: '100vh' }}>
@@ -147,18 +157,33 @@ export const Home = () => {
                         ) : (
                             <div className="dashboard-container">
                                 <div className="dashboard-header-flex">
-                                    <h2>📈 Panel GCRB Te Escucha</h2>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                        <h2>📈 Panel GCRB Te Escucha</h2>
+                                        {/* SELECTOR DE FILTRO GLOBAL POR CATEGORÍA */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Filtrar vista por:</span>
+                                            <select 
+                                                className="filter-select-mini"
+                                                value={filtroCategoria}
+                                                onChange={(e) => setFiltroCategoria(e.target.value)}
+                                                style={{ padding: '5px 10px', borderRadius: '10px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', background: 'white' }}
+                                            >
+                                                <option value="Todas">Todas las áreas</option>
+                                                {categorias.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
                                     <button onClick={fetchPqrs} className="refresh-btn-small">Actualizar Datos 🔄</button>
                                 </div>
 
                                 <div className="stats-grid">
                                     <div className="stat-card">
-                                        <small>Pendientes</small>
-                                        <div>{pendientes.length}</div>
+                                        <small>Pendientes ({filtroCategoria})</small>
+                                        <div>{pendientesFiltrados.length}</div>
                                     </div>
                                     <div className="stat-card green">
-                                        <small>Resueltos</small>
-                                        <div>{resueltos.length}</div>
+                                        <small>Resueltos ({filtroCategoria})</small>
+                                        <div>{resueltosFiltrados.length}</div>
                                     </div>
                                 </div>
 
@@ -166,8 +191,8 @@ export const Home = () => {
                                     <div className="table-section">
                                         <h3>📥 Pendientes por Revisar</h3>
                                         <div className="scroll-area">
-                                            {pendientes.length === 0 ? <p className="empty-msg">No hay casos pendientes.</p> :
-                                                pendientes.map(item => (
+                                            {pendientesFiltrados.length === 0 ? <p className="empty-msg">No hay casos pendientes en "{filtroCategoria}".</p> :
+                                                pendientesFiltrados.map(item => (
                                                     <div key={item.ID_Registro} className="pqrs-card">
                                                         <div className="pqrs-header">
                                                             <strong>{item.Nombres} {item.Apellidos}</strong>
@@ -186,10 +211,10 @@ export const Home = () => {
                                     <div className="table-section resueltos">
                                         <h3>✅ Historial de Resueltos</h3>
                                         <div className="scroll-area">
-                                            {resueltos.length === 0 ? <p className="empty-msg">No hay registros aún.</p> :
-                                                resueltos.map(item => (
+                                            {resueltosFiltrados.length === 0 ? <p className="empty-msg">No hay registros resueltos en "{filtroCategoria}".</p> :
+                                                resueltosFiltrados.map(item => (
                                                     <div key={item.ID_Registro} className="pqrs-card solved">
-                                                        <p><strong>{item.Categoria}:</strong> {item.Nombres}</p>
+                                                        <p><strong>{item.Categoria}:</strong> {item.Nombres} {item.Apellidos}</p>
                                                         <span className="badge-solved">RESUELTO</span>
                                                     </div>
                                                 ))
