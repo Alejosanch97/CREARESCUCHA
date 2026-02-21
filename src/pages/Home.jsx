@@ -163,7 +163,7 @@ export const Home = () => {
                             <div className="dashboard-container">
                                 <div className="dashboard-header-flex">
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                        <h2>📈 Panel GCRB Te Escucha</h2>
+                                        <h2>📈 Panel CREAR Te Escucha</h2>
                                         
                                         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -253,7 +253,7 @@ export const Home = () => {
             {step === 0 && (
                 <div className="welcome-container">
                     <div className="glass-card main-welcome">
-                        <img src="logo.png" className="school-logo-large" alt="GCRB Logo" />
+                        <img src="logo.png" className="school-logo-large" alt="Crear Logo" />
                         <h1>Crear Te Escucha</h1>
                         <p>Tu opinión nos permite mejorar cada día. Gracias por comunicarte con nosotros.</p>
                         <button className="start-btn-huge" onClick={() => setStep(1)}>INICIAR ENCUESTA 🚀</button>
@@ -293,7 +293,7 @@ export const Home = () => {
                         <textarea name="Mensaje" placeholder="Escribe aquí tu solicitud..." required value={formData.Mensaje} onChange={handleInputChange}></textarea>
                         
                         <div className="terms-box">
-                            <p>Al enviar este formulario, acepto el tratamiento de datos según la política institucional del GCRB.</p>
+                            <p>Al enviar este formulario, acepto el tratamiento de datos según la política institucional de Crear.</p>
                         </div>
 
                         <div className="form-buttons">
